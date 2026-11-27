@@ -2,7 +2,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, client_id: &u32) {
     let peer = stream.peer_addr().ok();
     println!("client connected: {peer:?}");
 
@@ -29,7 +29,7 @@ fn handle_client(mut stream: TcpStream) {
                 let message = line.trim_end();
                 println!("received from {peer:?}: {message}");
 
-                if let Err(error) = writeln!(stream, "server received: {message}") {
+                if let Err(error) = writeln!(stream, "server received: {message} (client {client_id})") {
                     eprintln!("failed to write to {peer:?}: {error}");
                     break;
                 }
@@ -50,11 +50,13 @@ fn handle_client(mut stream: TcpStream) {
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:7878")?;
     println!("TCP server listening on 127.0.0.1:7878");
+    let mut client_id = 0u32;
 
     for incoming in listener.incoming() {
         match incoming {
             Ok(stream) => {
-                thread::spawn(move || handle_client(stream));
+                client_id += 1;
+                thread::spawn(move || handle_client(stream, &client_id));
             }
             Err(error) => {
                 eprintln!("failed to accept connection: {error}");
