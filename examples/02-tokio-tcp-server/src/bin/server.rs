@@ -4,7 +4,13 @@ use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 
 async fn handle_client(socket: TcpStream) {
-    let peer = socket.peer_addr().unwrap();
+    let peer = match socket.peer_addr() {
+        Ok(peer) => peer,
+        Err(error) => {
+            eprintln!("failed to get peer address: {error}");
+            return;
+        }
+    };
     let (read_half, write_half) = socket.into_split();
     let mut reader = BufReader::new(read_half);
     let mut writer = BufWriter::new(write_half);
@@ -46,7 +52,13 @@ async fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
     println!("server is running on port 8080");
     loop {
-        let (socket, _) = listener.accept().await.unwrap();
+        let (socket, _) = match listener.accept().await {
+            Ok(connection) => connection,
+            Err(error) => {
+                eprintln!("failed to accept connection: {error}");
+                continue;
+            }
+        };
         tokio::spawn(async move {
             handle_client(socket).await;
         });
