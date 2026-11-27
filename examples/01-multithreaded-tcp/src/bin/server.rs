@@ -63,9 +63,9 @@ fn main() -> std::io::Result<()> {
     for incoming in listener.incoming() {
         let count_clone = Arc::clone(&count);
         client_id += 1;
-        count_clone.fetch_add(1, Ordering::SeqCst);
         match incoming {
             Ok(stream) => {
+            count_clone.fetch_add(1, Ordering::SeqCst);
                 thread::spawn(move || {
                     handle_client(
                         stream,
