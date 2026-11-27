@@ -1,9 +1,10 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc};
 use std::thread;
 
-fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<Mutex<u32>>) {
+fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<AtomicUsize>) {
     let peer = stream.peer_addr().ok();
     println!("client connected: {peer:?}");
 
@@ -11,9 +12,7 @@ fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<Mutex<u
         Ok(stream) => stream,
         Err(error) => {
             eprintln!("failed to clone stream: {error}");
-            let mut count_value = count_clone.lock().unwrap();
-            *count_value -= 1;
-            println!("client count: {}", *count_value);
+            println!("count: {}", count_clone.load(Ordering::SeqCst));
             return;
         }
     };
@@ -51,34 +50,35 @@ fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<Mutex<u
             }
         }
     }
-    let mut count_value = count_clone.lock().unwrap();
-    *count_value -= 1;
-    println!("client count: {}", *count_value);
+    count_clone.fetch_sub(1, Ordering::SeqCst);
+    println!("client count: {}", count_clone.load(Ordering::SeqCst));
 }
 
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:7878")?;
     println!("TCP server listening on 127.0.0.1:7878");
     let mut client_id = 0u32;
-    let count = Arc::new(Mutex::new(0));
+    let count = Arc::new(AtomicUsize::new(0));
 
     for incoming in listener.incoming() {
         let count_clone = Arc::clone(&count);
+        client_id += 1;
+        count_clone.fetch_add(1, Ordering::SeqCst);
         match incoming {
             Ok(stream) => {
-                client_id += 1;
-                {
-                    let mut count_value = count_clone.lock().unwrap();
-                    *count_value += 1;
-                    println!("client count: {}", *count_value);
-                }
-                thread::spawn(move || handle_client(stream, client_id, count_clone));
+                thread::spawn(move || {
+                    handle_client(
+                        stream,
+                        client_id,
+                        count_clone)
+                    
+                });
+                println!("count: {}", count.load(Ordering::SeqCst));
             }
             Err(error) => {
                 eprintln!("failed to accept connection: {error}");
             }
         }
     }
-
     Ok(())
 }
