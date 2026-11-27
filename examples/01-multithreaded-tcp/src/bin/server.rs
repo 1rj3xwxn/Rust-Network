@@ -12,7 +12,8 @@ fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<AtomicU
         Ok(stream) => stream,
         Err(error) => {
             eprintln!("failed to clone stream: {error}");
-            println!("count: {}", count_clone.fetch_sub(1, Ordering::SeqCst));
+            let old = count_clone.fetch_sub(1, Ordering::SeqCst);
+            println!("client count: {}", old - 1);
             return;
         }
     };
