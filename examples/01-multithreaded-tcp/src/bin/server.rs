@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::thread;
 
 fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<AtomicUsize>) {
@@ -65,14 +65,8 @@ fn main() -> std::io::Result<()> {
         client_id += 1;
         match incoming {
             Ok(stream) => {
-            count_clone.fetch_add(1, Ordering::SeqCst);
-                thread::spawn(move || {
-                    handle_client(
-                        stream,
-                        client_id,
-                        count_clone)
-                    
-                });
+                count_clone.fetch_add(1, Ordering::SeqCst);
+                thread::spawn(move || handle_client(stream, client_id, count_clone));
                 println!("count: {}", count.load(Ordering::SeqCst));
             }
             Err(error) => {
