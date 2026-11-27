@@ -1,7 +1,8 @@
-use tokio::io::{BufReader, BufWriter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{BufReader, BufWriter};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
+use tokio::time::{Duration, timeout};
 
 async fn handle_client(socket: TcpStream) {
     let peer = match socket.peer_addr() {
@@ -11,6 +12,7 @@ async fn handle_client(socket: TcpStream) {
             return;
         }
     };
+    println!("client connected: {peer:?}");
     let (read_half, write_half) = socket.into_split();
     let mut reader = BufReader::new(read_half);
     let mut writer = BufWriter::new(write_half);
@@ -18,12 +20,14 @@ async fn handle_client(socket: TcpStream) {
     loop {
         line.clear();
 
-        match reader.read_line( &mut line).await {
-            Ok(0) => {
+        let result = timeout(Duration::from_secs(10), reader.read_line(&mut line)).await;
+
+        match result {
+            Ok(Ok(n)) if n == 0 => {
                 println!("client disconnected: {peer:?}");
                 break;
             }
-            Ok(_) => {
+            Ok(Ok(_)) => {
                 let message = line.trim_end();
                 println!("received from {peer:?}: {message}");
 
@@ -39,8 +43,12 @@ async fn handle_client(socket: TcpStream) {
                     break;
                 }
             }
-            Err(error) => {
+            Ok(Err(error)) => {
                 eprintln!("read error from {peer:?}: {error}");
+                break;
+            }
+            Err(_) => {
+                eprintln!("client timeout: {peer:?}");
                 break;
             }
         }
