@@ -13,6 +13,7 @@ fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<Mutex<u
             eprintln!("failed to clone stream: {error}");
             let mut count_value = count_clone.lock().unwrap();
             *count_value -= 1;
+            println!("client count: {}", *count_value);
             return;
         }
     };
@@ -52,6 +53,7 @@ fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<Mutex<u
     }
     let mut count_value = count_clone.lock().unwrap();
     *count_value -= 1;
+    println!("client count: {}", *count_value);
 }
 
 fn main() -> std::io::Result<()> {
