@@ -50,8 +50,7 @@ fn handle_client(mut stream: TcpStream, client_id: u32, count_clone: Arc<AtomicU
             }
         }
     }
-    count_clone.fetch_sub(1, Ordering::SeqCst);
-    println!("client count: {}", count_clone.load(Ordering::SeqCst));
+    println!("client count: {}", count_clone.fetch_sub(1, Ordering::SeqCst));
 }
 
 fn main() -> std::io::Result<()> {
