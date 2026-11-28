@@ -18,7 +18,8 @@ async fn handle_client(socket: TcpStream) {
     let mut writer = BufWriter::new(write_half);
     let mut buffer = [0; 1024];
     let mut pending = Vec::new();
-    loop {
+    const MAX_MESSAGE_SIZE: usize = 64 * 1024;
+    'connection: loop {
         let result = timeout(Duration::from_secs(10), reader.read(&mut buffer)).await;
 
         match result {
@@ -28,25 +29,29 @@ async fn handle_client(socket: TcpStream) {
             }
             Ok(Ok(n)) if n > 0 => {
                 pending.extend_from_slice(&buffer[..n]);
+                if pending.len() > MAX_MESSAGE_SIZE {
+                    eprintln!("message too long: {peer:?}");
+                    break 'connection;
+                }
 
                 while let Some(pos) = pending.iter().position(|&b| b == b'\n') {
                     let message: Vec<u8> = pending.drain(..=pos).collect();
 
                     let message = String::from_utf8_lossy(&message);
-                    let message = message.trim_end();
+                    let message_str = message.trim_end();
 
-                    println!("received from {peer:?}: {message}");
+                    println!("received from {peer:?}: {message_str}");
 
-                    let response = format!("server received: {message}\n");
+                    let response = format!("server received: {message_str}\n");
 
                     if let Err(error) = writer.write_all(response.as_bytes()).await {
                         eprintln!("failed to write to {peer:?}: {error}");
-                        break;
+                        break 'connection;
                     }
 
                     if let Err(error) = writer.flush().await {
                         eprintln!("failed to flush to {peer:?}: {error}");
-                        break;
+                        break 'connection;
                     }
                 }
             }
