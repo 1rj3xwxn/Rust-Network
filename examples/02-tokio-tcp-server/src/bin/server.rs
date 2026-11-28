@@ -29,12 +29,11 @@ async fn handle_client(socket: TcpStream) {
             }
             Ok(Ok(n)) if n > 0 => {
                 pending.extend_from_slice(&buffer[..n]);
-                if pending.len() > MAX_MESSAGE_SIZE {
-                    eprintln!("message too long: {peer:?}");
-                    break 'connection;
-                }
-
                 while let Some(pos) = pending.iter().position(|&b| b == b'\n') {
+                    if pos + 1 >= MAX_MESSAGE_SIZE {
+                        eprintln!("message too long: {peer:?}");
+                        break 'connection;
+                    }
                     let message: Vec<u8> = pending.drain(..=pos).collect();
 
                     let message = String::from_utf8_lossy(&message);
@@ -53,6 +52,10 @@ async fn handle_client(socket: TcpStream) {
                         eprintln!("failed to flush to {peer:?}: {error}");
                         break 'connection;
                     }
+                }
+                if pending.len() > MAX_MESSAGE_SIZE {
+                    eprintln!("message too long: {peer:?}");
+                    break 'connection;
                 }
             }
             Ok(Ok(_)) => {
