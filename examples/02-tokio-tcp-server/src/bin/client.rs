@@ -24,7 +24,7 @@ fn main() -> io::Result<()> {
         if input.trim() == "/quit" {
             break;
         }
-
+        input = "12324\n3456\n7890\n".to_string();
         stream.write_all(input.as_bytes())?;
         stream.flush()?;
 

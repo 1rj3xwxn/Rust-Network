@@ -1,4 +1,4 @@
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::io::{BufReader, BufWriter};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
@@ -16,32 +16,43 @@ async fn handle_client(socket: TcpStream) {
     let (read_half, write_half) = socket.into_split();
     let mut reader = BufReader::new(read_half);
     let mut writer = BufWriter::new(write_half);
-    let mut line = String::new();
+    let mut buffer = [0; 1024];
+    let mut pending = Vec::new();
     loop {
-        line.clear();
-
-        let result = timeout(Duration::from_secs(10), reader.read_line(&mut line)).await;
+        let result = timeout(Duration::from_secs(10), reader.read(&mut buffer)).await;
 
         match result {
             Ok(Ok(n)) if n == 0 => {
                 println!("client disconnected: {peer:?}");
                 break;
             }
+            Ok(Ok(n)) if n > 0 => {
+                pending.extend_from_slice(&buffer[..n]);
+
+                while let Some(pos) = pending.iter().position(|&b| b == b'\n') {
+                    let message: Vec<u8> = pending.drain(..=pos).collect();
+
+                    let message = String::from_utf8_lossy(&message);
+                    let message = message.trim_end();
+
+                    println!("received from {peer:?}: {message}");
+
+                    let response = format!("server received: {message}\n");
+
+                    if let Err(error) = writer.write_all(response.as_bytes()).await {
+                        eprintln!("failed to write to {peer:?}: {error}");
+                        break;
+                    }
+
+                    if let Err(error) = writer.flush().await {
+                        eprintln!("failed to flush to {peer:?}: {error}");
+                        break;
+                    }
+                }
+            }
             Ok(Ok(_)) => {
-                let message = line.trim_end();
-                println!("received from {peer:?}: {message}");
-
-                let response = format!("server received: {message}\n");
-
-                if let Err(error) = writer.write_all(response.as_bytes()).await {
-                    eprintln!("failed to write to {peer:?}: {error}");
-                    break;
-                }
-
-                if let Err(error) = writer.flush().await {
-                    eprintln!("failed to flush to {peer:?}: {error}");
-                    break;
-                }
+                eprintln!("unexpected read result: {result:?}");
+                break;
             }
             Ok(Err(error)) => {
                 eprintln!("read error from {peer:?}: {error}");
