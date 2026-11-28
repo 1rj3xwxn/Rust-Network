@@ -30,7 +30,7 @@ async fn handle_client(socket: TcpStream) {
             Ok(Ok(n)) if n > 0 => {
                 pending.extend_from_slice(&buffer[..n]);
                 while let Some(pos) = pending.iter().position(|&b| b == b'\n') {
-                    if pos + 1 >= MAX_MESSAGE_SIZE {
+                    if pos + 1 > MAX_MESSAGE_SIZE {
                         eprintln!("message too long: {peer:?}");
                         break 'connection;
                     }
